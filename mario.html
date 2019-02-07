@@ -1,0 +1,711 @@
+<head>
+	<title>Mario Game</title>
+	<meta charset="UTF-8">
+</head>
+<body>
+<br>
+<canvas id="myCanvas" width="1700" height="800" style="border:1px solid #cccccc;"></canvas>
+<script type="text/javascript">
+
+    function httpPost(url, payload, callback)
+    {
+        let request = new XMLHttpRequest();
+        request.onreadystatechange = function()
+        {
+            if(request.readyState == 4)
+            {
+                if(request.status == 200)
+                    callback(request.responseText);
+                else
+                {
+                    if(request.status == 0 && request.statusText.length == 0)
+                        alert("Connection failed");
+                    else
+                        alert("Server returned status " + request.status + ", " + request.statusText);
+                }
+            }
+        };
+        request.open('post', url, true);
+        request.setRequestHeader('Content-Type',
+            'application/x-www-form-urlencoded');
+        request.send(payload);
+    }
+
+    function cb(response)
+    {
+        // Parse the JSON
+        let ob = JSON.parse(response);
+        my_ID = ob.ID;
+        mx = ob.mx;
+        my = ob.my;
+        mv_vel = ob.mv_vel;
+        lx = ob.lx;
+        ly = ob.ly;
+        lv_vel = ob.lv_vel;
+    }
+    function sayhi()
+    {
+        // Find the text field
+        let msg = document.getElementById("mymessage");
+
+        // Make a JSON blob
+        let ob = {};
+        ob.message = msg.value;
+        ob.fav_num = 3.14159;
+        let json_string = JSON.stringify(ob);
+
+        // Send the JSON blob to the server
+        httpPost("ajax_handler.html", json_string, cb);
+    }
+// Server global variables
+let my_ID = -1;
+let mx = 0;
+let my = 0;
+let mv_vel = 0;
+let lx = 0;
+let ly = 0;
+let lv_vel = 0;
+    // Array of json objects
+//let myJsonFile = [{"Type":"Mario","x":-301,"y":485,"w":61,"h":96,"v velocity":0.0,"frames not on ground":1,"frame":0},{"Type":"Brick","x":-649,"y":590,"w":115,"h":191},{"Type":"Brick","x":-282,"y":595,"w":75,"h":148},{"Type":"Brick","x":41,"y":487,"w":572,"h":80},{"Type":"CoinBlock","x":72,"y":228,"w":116,"h":94,"type":1},{"Type":"CoinBlock","x":408,"y":228,"w":115,"h":97,"type":1},{"Type":"Brick","x":872,"y":367,"w":170,"h":413},{"Type":"Brick","x":1388,"y":285,"w":203,"h":494},{"Type":"CoinBlock","x":1439,"y":43,"w":104,"h":87,"type":1},{"Type":"Brick","x":1758,"y":489,"w":147,"h":290},{"Type":"Brick","x":2040,"y":590,"w":130,"h":188},{"Type":"Brick","x":2397,"y":514,"w":521,"h":77},{"Type":"Brick","x":2402,"y":307,"w":500,"h":128},{"Type":"Brick","x":2296,"y":508,"w":113,"h":71},{"Type":"Brick","x":2917,"y":498,"w":88,"h":73},{"Type":"CoinBlock","x":2570,"y":40,"w":122,"h":77,"type":1},{"Type":"Brick","x":3299,"y":597,"w":135,"h":182},{"Type":"Brick","x":3434,"y":462,"w":89,"h":316},{"Type":"Brick","x":3522,"y":364,"w":140,"h":411},{"Type":"CoinBlock","x":3525,"y":133,"w":104,"h":87,"type":1},{"Type":"Brick","x":3870,"y":273,"w":108,"h":507},{"Type":"Brick","x":3978,"y":272,"w":193,"h":125},{"Type":"Brick","x":3869,"y":268,"w":108,"h":511},{"Type":"Brick","x":3869,"y":269,"w":301,"h":126},{"Type":"Brick","x":3870,"y":265,"w":301,"h":129},{"Type":"CoinBlock","x":4282,"y":500,"w":130,"h":114,"type":1},{"Type":"CoinBlock","x":4500,"y":500,"w":80,"h":88,"type":1},{"Type":"Brick","x":-387,"y":690,"w":305,"h":89},{"Type":"Brick","x":-357,"y":597,"w":239,"h":92},{"Type":"Brick","x":-358,"y":592,"w":238,"h":99},{"Type":"Brick","x":-359,"y":582,"w":240,"h":110},{"Type":"Brick","x":4689,"y":614,"w":119,"h":95},{"Type":"Brick","x":4890,"y":406,"w":120,"h":121},{"Type":"Brick","x":5114,"y":590,"w":122,"h":128},{"Type":"Brick","x":5296,"y":312,"w":141,"h":166},{"Type":"CoinBlock","x":5295,"y":59,"w":109,"h":108,"type":1}]
+let myJsonFile = [{"Type":"Mario","x":-300,"y":485,"w":61,"h":96,"v velocity":0.0,"frames not on ground":1,"frame":0},{"Type":"Luigi","x":-100,"y":485,"w":61,"h":96,"v velocity":0.0,"frames not on ground":1,"frame":0},{"Type":"Brick","x":200,"y":600,"w":150,"h":150},{"Type":"Brick","x":450,"y":400,"w":150,"h":150}];
+
+class Sprite
+{
+	// Sprite constructor takes in model 
+	constructor(model)
+	{
+		// Default values for sprites
+		this.x = 0;
+		this.y = 0;
+		this.w = 0;
+		this.h = 0;
+		this.coin_count = 0;
+		this.model = model; // Set model reference for all sprites
+	}
+	
+	// Sprite collision detecting
+	doesCollideWith(sprite_A, sprite_B)
+	{
+		if(sprite_A.x + sprite_A.w <= sprite_B.x)
+            return false;
+        else if(sprite_A.x >= sprite_B.x + sprite_B.w)
+            return false;
+        else if(sprite_A.y + sprite_A.h <= sprite_B.y)
+            return false;
+        else if(sprite_A.y >= sprite_B.y + sprite_B.h)
+            return false;
+        else
+            return true;
+	}
+	
+	// Sprite collision handling
+	collisionHandle(sprite_A, sprite_B)
+	{
+		// Handle left of sprite collision
+		if (sprite_A.x + sprite_A.w >= sprite_B.x && sprite_A.prev_x + sprite_A.w <= sprite_B.x)
+		{
+			sprite_A.x = sprite_B.x - sprite_A.w - 1;
+		} 
+		// Handle right of sprite collision
+		else if (sprite_A.x <= sprite_B.x + sprite_B.w && sprite_A.prev_x >= sprite_B.x + sprite_B.w)
+		{
+			sprite_A.x = sprite_B.x + sprite_B.w + 1;
+		} 
+		// Handle top of sprite collision 
+		else if (sprite_A.y + sprite_A.h >= sprite_B.y && sprite_A.prev_y <= sprite_B.y)
+		{
+			sprite_A.y = sprite_B.y - sprite_A.h - 1;
+			sprite_A.vert_vel = 0.0;
+			sprite_A.frames_not_on_ground = 0;
+		}
+		// Handle bottom of sprite collision
+		else if (sprite_A.y <= sprite_B.y + sprite_B.h && sprite_A.prev_y >= sprite_B.y + sprite_B.h)
+		{
+			// Handle giving 5 coins from coin blocks
+			if(sprite_B.isCoinBlock() && this.coin_count < 5)
+			{
+				sprite_A.y = sprite_B.y + sprite_B.h + 1;
+				sprite_A.vert_vel = 28.2; // Prevent multiple coins from spitting out
+				this.giveCoin(sprite_B.x,sprite_B.y,sprite_B.w);
+				this.coin_count++;
+				// Draw spent block after 5 coins
+				if(this.coin_count > 4)
+				{
+					this.drawSpent(sprite_B.x,sprite_B.y,sprite_B.w,sprite_B.h,this.model);
+				}
+			}
+			else
+			{
+				sprite_A.y = sprite_B.y + sprite_B.h + 1;
+				sprite_A.vert_vel = 0;
+			}
+		}
+	}
+	
+	// Get random horizontal velocity for coin and draw a new coin
+	giveCoin(x,y,w)
+    {
+        let h_vel = (Math.random() * 21) - 10;
+        let v_vel = -21.8;
+        this.c = new Coin(x,y,w,v_vel,h_vel,this.model);
+        this.model.sprites.push(this.c);
+    }
+	
+	// Draw the spent coin block
+	drawSpent(x,y,w,h,t,model)
+	{
+		this.coinBlock = new CoinBlock(x,y,w,h,this.model,"coinblockspent.png");
+		this.model.sprites.push(this.coinBlock);
+	}
+	
+	// Overridden in Brick class as true 
+	isBrick()
+	{
+		return false;
+	}
+	
+	isCoinBlock()
+	{
+		return false;
+	}
+	
+	isMario()
+	{
+		return false;
+	}
+}
+
+class Mario extends Sprite
+{
+	// Mario constructor calls super for model and initializes variables
+	constructor(x, y, model)
+	{
+		super(model);
+		// Load image files
+		this.img0 = new Image();		
+		this.img1 = new Image();		
+		this.img2 = new Image();		
+		this.img3 = new Image();		
+		this.img4 = new Image();		
+		this.img5 = new Image();		
+		this.img6 = new Image();		
+		this.img7 = new Image();		
+		this.img8 = new Image();		
+		this.img9 = new Image();
+		this.img0.src = "mario1.png";
+		this.img1.src = "mario2.png";
+		this.img2.src = "mario3.png";
+		this.img3.src = "mario4.png";
+		this.img4.src = "mario5.png";
+		this.img5.src = "mario6.png";
+		this.img6.src = "mario7.png";
+		this.img7.src = "mario8.png";
+		this.img8.src = "mario9.png";
+		this.img9.src = "mario10.png";
+		// Put all images into an array
+		this.marioimgArray = new Array(this.img0,this.img1,this.img2,this.img3,this.img4,this.img5,this.img6,this.img7,this.img8,this.img9);
+		this.img10 = new Image();
+		this.img10.src = "luigi.png";
+		this.frame = 0;
+		this.x = x;
+		this.y = y;
+		this.w = 62;
+		this.h = 97;
+		this.prev_x = 300;
+		this.prev_y = 400;
+		this.vert_vel = 0;
+		this.frames_not_on_ground = 0;
+	}
+	
+	// Get mario's previous location to handle collision
+	prevLocation()
+	{
+		this.prev_x = this.x;
+		this.prev_y = this.y;
+	}
+	
+	isMario()
+	{
+		return true;
+	}
+	
+	update()
+	{
+		this.model.scrollX = this.x - 300;
+		// Give mario gravity
+		this.vert_vel += 5.8;
+		this.y += this.vert_vel;
+		// Stop mario from falling past ground
+		if(this.y > 656)
+		{
+			this.vert_vel = 0.0;
+			this.frames_not_on_ground = 0;
+			this.y = 656;
+		}
+		// Run through the sprites list and detect collision to mario
+		for(let i = 0; i < this.model.sprites.length; i++)
+		{
+			let s = this.model.sprites[i];
+			if(s.isBrick())
+			{
+				if(this.doesCollideWith(this, s))
+				{
+					this.collisionHandle(this, s);
+				}
+			}
+		}
+		
+		// Update mario jump frames
+		this.frames_not_on_ground++;
+	}
+	
+	// Frame updating methods
+	frame_update()
+    {
+        this.frame++;
+        if(this.frame > 4)
+        {
+            this.frame = 0;
+        }
+    }
+	
+    frame_update_reverse()
+    {
+        if(this.frame < 5)
+        {
+            this.frame = 5;
+        }
+        else if(this.frame > 8)
+        {
+            this.frame = 5;
+        }
+        else
+        {
+            this.frame++;
+        }
+    }
+	
+	// Draw mario
+	draw(ctx)
+	{
+            ctx.drawImage(this.marioimgArray[this.frame], this.x - this.model.scrollX, this.y);
+	}
+}
+class Luigi extends Sprite
+{
+    // Mario constructor calls super for model and initializes variables
+    constructor(x, y, model)
+    {
+        super(model);
+        // Load image file
+        this.img10 = new Image();
+        this.img10.src = "luigi.png";
+        //this.frame = 0;
+        this.x = x;
+        this.y = y;
+        this.w = 62;
+        this.h = 97;
+        this.prev_x = 300;
+        this.prev_y = 400;
+        this.vert_vel = 0;
+        this.frames_not_on_ground = 0;
+    }
+
+        // Get mario's previous location to handle collision
+        prevLocation()
+        {
+            this.prev_x = this.x;
+            this.prev_y = this.y;
+        }
+
+        isMario()
+        {
+            return true;
+        }
+
+        update()
+        {
+            this.model.scrollX = this.x - 300;
+            // Give luigi gravity
+            this.vert_vel += 5.8;
+            this.y += this.vert_vel;
+            // Stop luigi from falling past ground
+            if(this.y > 656)
+            {
+                this.vert_vel = 0.0;
+                this.frames_not_on_ground = 0;
+                this.y = 656;
+            }
+            // Run through the sprites list and detect collision to mario
+            for(let i = 0; i < this.model.sprites.length; i++)
+            {
+                let s = this.model.sprites[i];
+                if(s.isBrick())
+                {
+                    if(this.doesCollideWith(this, s))
+                    {
+                        this.collisionHandle(this, s);
+                    }
+                }
+            }
+
+            // Update mario jump frames
+            this.frames_not_on_ground++;
+        }
+
+        // Draw luigi
+        draw(ctx)
+        {
+            ctx.drawImage(this.img10, this.x - this.model.scrollX, this.y);
+        }
+    }
+
+class Brick extends Sprite
+{
+	// Brick constructor sets member variables 
+	constructor(x_pos, y_pos, width, height, model, image_url)
+	{
+		super(model);
+		this.image = new Image();
+		this.image.src = image_url;
+		this.x = x_pos;
+		this.y = y_pos;
+		this.w = width;
+		this.h = height;
+	}
+	
+	// Override isBrick to be true
+	isBrick()
+	{
+		return true;
+	}
+	
+	update()
+	{
+	}
+	
+	// Draw a brick
+	draw(ctx)
+	{
+		ctx.drawImage(this.image, this.x - this.model.scrollX, this.y, this.w, this.h);
+	}
+}
+
+class CoinBlock extends Sprite
+{
+	constructor(x_pos, y_pos, width, height, model,image_url)
+	{
+		super(model);
+		this.image = new Image();
+		this.image.src = image_url;
+		this.x = x_pos;
+		this.y = y_pos;
+		this.w = width;
+		this.h = height;
+	}
+	
+	isCoinBlock()
+	{
+		return true;
+	}
+	
+	// Check for collisions with the coin block
+	update()
+	{
+		for(let i = 0; i < this.model.sprites.length; i++)
+		{
+			let s = this.model.sprites[i];
+			if(s.isMario())
+			{
+				if(this.doesCollideWith(s, this))
+				{
+					this.collisionHandle(s, this);
+				}
+			}
+		}
+	}
+	
+	// Draw coin block
+	draw(ctx)
+	{
+		ctx.drawImage(this.image, this.x - this.model.scrollX, this.y, this.w, this.h);
+	}
+}
+
+class Coin extends Sprite
+{
+	constructor(b_x, b_y, b_w, v_vel, h_vel, model)
+	{
+		super(model);
+		this.image = new Image();
+		this.image.src = "coin.png";
+		this.x = b_x + (b_w / 5);
+		this.y = b_y;
+		this.w = 70;
+		this.h = 70;
+		this.v_vel = v_vel;
+		this.h_vel = h_vel;
+	}
+	
+	// Update coin with random horizontal velocity and set vertical velocity
+	update(i)
+	{
+		// Give coin gravity
+		this.y += this.v_vel;
+		this.v_vel += 1.8;
+		
+		this.x += this.h_vel;
+		
+		// Remove coin from array after it goes off screen
+		if(this.y > 1600)
+		{
+			this.model.sprites.splice(i,1);
+		}
+	}
+	
+	// Draw coin
+	draw(ctx)
+	{
+		ctx.drawImage(this.image, this.x - this.model.scrollX, this.y, this.w, this.h)
+	}
+}	
+	
+
+class Model
+{
+	// Model constructor creates a mario and brick and adds them to the sprites array
+	constructor()
+	{
+		this.sprites = [];
+		this.scrollX = 0;
+		this.load();
+	}
+	
+	// Load json objects from the array
+	unmarshal()
+	{
+		// Clear the sprites array
+		this.sprites = [];
+		
+		// Run through the json file and make new objects depending on the type
+		for(let i = 0; i < myJsonFile.length; i++)
+		{
+			if(myJsonFile[i].Type === "Mario")
+			{
+				this.mario = new Mario(myJsonFile[i].x, myJsonFile[i].y, this);
+				this.sprites.push(this.mario);
+			}
+			else if(myJsonFile[i].Type === "Luigi")
+			{
+			    this.luigi = new Luigi(myJsonFile[i].x, myJsonFile[i].y, this);
+			    this.sprites.push(this.luigi);
+			}
+			else if(myJsonFile[i].Type === "Brick")
+			{
+				this.brick = new Brick(myJsonFile[i].x, myJsonFile[i].y, myJsonFile[i].w, myJsonFile[i].h, this, "brick.png");
+				this.sprites.push(this.brick);
+			}
+			
+			else if(myJsonFile[i].Type === "CoinBlock")
+			{
+				this.coinBlock = new CoinBlock(myJsonFile[i].x, myJsonFile[i].y, myJsonFile[i].w, myJsonFile[i].h, this, "coinblockactive.png");
+				this.sprites.push(this.coinBlock);
+			}
+			
+		}	
+	}
+
+	// Loop through the array of sprites and update them in model
+	update()
+	{
+		for(let i = 0; i < this.sprites.length; i++)
+		{
+            this.sprites[i].update(i);
+        }
+	}
+
+	load()
+	{
+		this.unmarshal();
+	}
+}
+
+class View
+{
+	// Model reference and set background image
+	constructor(model)
+	{
+		this.model = model;
+		this.canvas = document.getElementById("myCanvas");
+		this.background = new Image();
+		this.background.src = "background.png";
+	}
+
+	update()
+	{
+		// Draw background
+		let ctx = this.canvas.getContext("2d");
+		ctx.fillStyle = "cyan";
+		ctx.fillRect(0,0,1700,800);
+		ctx.drawImage(this.background, -150 - (this.model.scrollX/4) ,0, 3000, 830);
+		
+		// Loops through array of sprites and calls their draw method
+		for(let i = 0; i < this.model.sprites.length; i++)
+		{
+			let sprite = this.model.sprites[i];
+			sprite.draw(ctx);
+		}
+	}
+}
+
+class Controller
+{
+	constructor(model, view)
+	{
+		this.model = model;
+		this.view = view;
+		this.key_right = false;
+		this.key_left = false;
+		this.key_up = false;
+		this.key_down = false;
+		let self = this;
+		view.canvas.addEventListener("click", function(event) { self.onClick(event); });
+		document.addEventListener('keydown', function(event) { self.keyDown(event); }, false);
+		document.addEventListener('keyup', function(event) { self.keyUp(event); }, false);
+	}
+
+	onClick(event)
+	{
+		//this.model.onclick(event.pageX - this.view.canvas.offsetLeft, event.pageY - this.view.canvas.offsetTop);
+	}
+
+	keyDown(event)
+	{
+		if(event.keyCode == 39) this.key_right = true;
+		else if(event.keyCode == 37) this.key_left = true;
+		else if(event.keyCode == 38) this.key_up = true;
+		else if(event.keyCode == 40) this.key_down = true;
+		else if(event.keyCode == 32) this.key_space = true;
+		else if(event.keyCode == 76) this.model.load(); // Load map when user presses L on keyboard
+	}
+
+	keyUp(event)
+	{
+		if(event.keyCode == 39) this.key_right = false;
+		else if(event.keyCode == 37) this.key_left = false;
+		else if(event.keyCode == 38) this.key_up = false;
+		else if(event.keyCode == 40) this.key_down = false;
+		else if(event.keyCode == 32) this.key_space = false;
+	}
+
+    contactServer()
+    {
+        // Make a JSON blob
+        let ob = {};
+        ob.ID = my_ID;
+        ob.mx = this.model.mario.x;
+        ob.my = this.model.mario.y;
+        ob.mv_vel = this.model.mario.vert_vel;
+        ob.lx = this.model.luigi.x;
+        ob.ly = this.model.luigi.y;
+        ob.lv_vel = this.model.luigi.vert_vel;
+        let json_string = JSON.stringify(ob);
+        console.log(json_string);
+        // Send the JSON blob to the server
+        httpPost("ajax_handler.html", json_string, cb);
+    }
+
+	update()
+	{
+		this.model.mario.prevLocation(); // Get mario's previous location
+        this.model.luigi.prevLocation();
+		// If statements that move mario depending on key pressed 
+		if(this.key_right)
+		{
+		    if(my_ID == 1)
+		    {
+                this.model.mario.x += 20;
+                this.model.mario.frame_update();
+            }
+            else if(my_ID == 2)
+            {
+                this.model.luigi.x += 20;
+               // this.model.luigi.frame_update();
+            }
+            else
+            {
+            }
+		}
+		if(this.key_left) 
+		{
+            if(my_ID == 1)
+            {
+                this.model.mario.x -= 20;
+                this.model.mario.frame_update_reverse();
+            }
+            else if(my_ID == 2)
+            {
+                this.model.luigi.x -= 20;
+                //this.model.luigi.frame_update_reverse();
+            }
+            else
+            {
+            }
+		}
+		if(this.key_space)
+		{
+		    if(my_ID == 1)
+		    {
+                if (this.model.mario.frames_not_on_ground < 5)
+                    this.model.mario.vert_vel -= 30.8;
+            }
+            else if(my_ID == 2)
+            {
+                if (this.model.luigi.frames_not_on_ground < 5)
+                    this.model.luigi.vert_vel -= 30.8;
+            }
+            else
+            {
+            }
+		}
+		// Networking, contacts server every 20 frames
+		if(this.frame_count === undefined)
+		    this.frame_count = 0;
+		this.frame_count++;
+		if(this.frame_count > 3)
+        {
+            this.frame_count = 0;
+            this.contactServer();
+        }
+        this.model.mario.x = mx;
+        this.model.luigi.x = lx;
+        this.model.mario.y = my;
+        this.model.luigi.y = ly;
+        this.model.mario.vert_vel = mv_vel;
+        this.model.luigi.vert_vel = lv_vel;
+	}
+}
+
+class Game
+{
+	constructor()
+	{
+		this.model = new Model();
+		this.view = new View(this.model);
+		this.controller = new Controller(this.model, this.view);
+	}
+
+	onTimer()
+	{
+		this.controller.update();
+		this.model.update();
+		this.view.update();
+	}
+}
+
+let game = new Game();
+let timer = setInterval(function() { game.onTimer(); }, 40);
+
+</script>
+
+</body>
